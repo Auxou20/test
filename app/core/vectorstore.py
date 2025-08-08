@@ -2,14 +2,13 @@ from __future__ import annotations
 import chromadb
 from chromadb.config import Settings
 from typing import List, Dict
-from .config import CHROMA_DIR
-from .llm import ollama
+from app.core.config import CHROMA_DIR
+from app.core.llm import ollama
 
 _client = chromadb.Client(Settings(persist_directory=str(CHROMA_DIR)))
 _collection = _client.get_or_create_collection("legal_docs")
 
 def add_documents(docs: List[Dict]):
-    # Each doc: {id, text, metadata}
     ids = [d["id"] for d in docs]
     texts = [d["text"] for d in docs]
     metadatas = [d.get("metadata", {}) for d in docs]
@@ -20,7 +19,6 @@ def add_documents(docs: List[Dict]):
 def query(text: str, k: int=5):
     emb = ollama.embed([text])[0]
     res = _collection.query(query_embeddings=[emb], n_results=k)
-    # Return list of dicts {text, score, metadata}
     out = []
     for i in range(len(res["ids"][0])):
         out.append({
@@ -30,3 +28,4 @@ def query(text: str, k: int=5):
             "metadata": res["metadatas"][0][i]
         })
     return out
+
