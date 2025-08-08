@@ -1,33 +1,80 @@
 from __future__ import annotations
-import chromadb
 from typing import List, Dict
-from app.core.config import CHROMA_DIR
+from pathlib import Path
+import json
+import numpy as np
+
+from app.core.config import CHROMA_DIR  # on réutilise ce dossier pour stocker l'index
 from app.core.llm import ollama
 
-# ChromaDB 0.4.x : client persistant
-_client = chromadb.PersistentClient(path=str(CHROMA_DIR))
-_collection = _client.get_or_create_collection("legal_docs")
+INDEX_DIR = Path(CHROMA_DIR)
+INDEX_DIR.mkdir(parents=True, exist_ok=True)
+INDEX_PATH = INDEX_DIR / "index.json"
+
+# Structure JSON:
+# {
+#   "ids": [str, ...],
+#   "texts": [str, ...],
+#   "metadatas": [dict, ...],
+#   "embeddings": [[float, ...], ...]
+# }
+
+def _load_index():
+    if not INDEX_PATH.exists():
+        return {"ids": [], "texts": [], "metadatas": [], "embeddings": []}
+    with open(INDEX_PATH, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def _save_index(idx):
+    with open(INDEX_PATH, "w", encoding="utf-8") as f:
+        json.dump(idx, f, ensure_ascii=False)
 
 def add_documents(docs: List[Dict]):
-    # Each doc: {id, text, metadata}
-    ids = [d["id"] for d in docs]
+    """
+    docs: liste de {id, text, metadata}
+    """
+    if not docs:
+        return
+    idx = _load_index()
     texts = [d["text"] for d in docs]
-    metadatas = [d.get("metadata", {}) for d in docs]
-    embeddings = ollama.embed(texts)
-    _collection.add(ids=ids, documents=texts, metadatas=metadatas, embeddings=embeddings)
+    embeds = ollama.embed(texts)  # -> List[List[float]]
+    for d, e in zip(docs, embeds):
+        idx["ids"].append(d["id"])
+        idx["texts"].append(d["text"])
+        idx["metadatas"].append(d.get("metadata", {}))
+        idx["embeddings"].append(e)
+    _save_index(idx)
+
+def _cosine_sim(a: np.ndarray, b: np.ndarray) -> float:
+    denom = (np.linalg.norm(a) * np.linalg.norm(b))
+    if denom == 0:
+        return 0.0
+    return float(np.dot(a, b) / denom)
 
 def query(text: str, k: int = 5):
-    emb = ollama.embed([text])[0]
-    res = _collection.query(query_embeddings=[emb], n_results=k)
+    """
+    Retourne: List[ {id, text, score, metadata} ] triée par score décroissant (cosine).
+    """
+    idx = _load_index()
+    if not idx["ids"]:
+        return []
+
+    q_emb = np.array(ollama.embed([text])[0], dtype=np.float32)
+    embs = np.array(idx["embeddings"], dtype=np.float32)
+
+    # calcul cosine pour tous
+    # normalise
+    qn = q_emb / (np.linalg.norm(q_emb) + 1e-12)
+    en = embs / (np.linalg.norm(embs, axis=1, keepdims=True) + 1e-12)
+    sims = en @ qn  # produits scalaires => cosines
+
+    order = np.argsort(-sims)[:k]
     out = []
-    n = len(res.get("ids", [[]])[0]) if res.get("ids") else 0
-    for i in range(n):
+    for i in order:
         out.append({
-            "id": res["ids"][0][i],
-            "text": res["documents"][0][i],
-            "score": (res["distances"][0][i] if "distances" in res else None),
-            "metadata": res["metadatas"][0][i]
+            "id": idx["ids"][i],
+            "text": idx["texts"][i],
+            "score": float(sims[i]),
+            "metadata": idx["metadatas"][i],
         })
     return out
-
-
