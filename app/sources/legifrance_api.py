@@ -1,10 +1,7 @@
 from __future__ import annotations
 from typing import List, Dict, Optional
 import httpx, time
-from ..core.config import PILOTAGE_API_CLIENT_ID, PILOTAGE_API_CLIENT_SECRET
-
-# NOTE: Exemple simplifié. L’API Légifrance/PISTE requiert l’obtention de jetons OAuth2.
-# Référez-vous à leur documentation officielle. Ici, on expose une signature prête à l’emploi.
+from app.core.config import PILOTAGE_API_CLIENT_ID, PILOTAGE_API_CLIENT_SECRET
 
 TOKEN_URL = "https://oauth.piste.gouv.fr/api/oauth/token"
 SEARCH_URL = "https://api.piste.gouv.fr/dila/legifrance-beta/lf-engine-app/search"
@@ -46,7 +43,6 @@ class LegifranceClient:
             r = client.post(SEARCH_URL, headers=headers, json=payload)
             r.raise_for_status()
             data = r.json()
-        # Normalisez la sortie selon vos besoins (titre, url, extrait)
         items = []
         for it in data.get("results", []):
             items.append({
