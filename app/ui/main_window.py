@@ -6,11 +6,14 @@ from PySide6.QtCore import Qt
 import sys
 from pathlib import Path
 
-from ..core.rag import ingest_path, answer_with_citations
-from ..core.adversary import critique
-from ..core.docgen import generate_markdown, generate_docx
-from ..core.predictive import nearest_cases, probability, strategic_reco
-from ..core.alerts import start_alerts, stop_alerts, notifier
+from app.core.rag import ingest_path, answer_with_citations
+from app.core.adversary import critique
+from app.core.docgen import generate_markdown, generate_docx
+from app.core.predictive import nearest_cases, probability, strategic_reco
+from app.core.alerts import start_alerts, stop_alerts, notifier
+
+# … (le reste du fichier inchangé)
+
 
 def _row(label: str, widget):
     row = QHBoxLayout()
