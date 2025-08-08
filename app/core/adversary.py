@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Dict
-from .llm import ollama
+from app.core.llm import ollama
 
 TEMPLATE = '''
 Mode "Avocat du Diable". Attaque méthodiquement les arguments ci-dessous.
